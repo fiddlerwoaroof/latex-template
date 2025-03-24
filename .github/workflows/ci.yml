@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v24
+        with:
+          extra_nix_config: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build pdf
+        run: |
+          nix build --print-build-logs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: main.pdf
+          path: result/main.pdf
+          if-no-files-found: error
+
+      - name: build previews
+        run: |
+          nix build --print-build-logs .\#previews
+          cp result/* previews
+
+      - name: push
+        run: |
+          if git add previews; then
+            git config --global user.name 'Workflow User'
+            git config --global user.email 'fiddlerwoaroof@users.noreply.github.com'
+            git commit -m "chore: update previews" || exit 0
+            git push
+          fi
